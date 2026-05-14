@@ -85,7 +85,7 @@ echo
 
 chmod +x ngrok
 
-./ngrok authtoken "$NGROK_TOKEN"
+./ngrok authtoken $NGROK_TOKEN
 
 ./ngrok tcp 3388 > /dev/null 2>&1 &
 

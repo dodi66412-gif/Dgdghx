@@ -104,7 +104,7 @@ echo "================================="
 echo
 
 qemu-system-x86_64 \
--m "$RAM" \
+-m $RAM \
 -smp 2 \
 -hda kali.qcow2 \
 -cdrom kali.iso \

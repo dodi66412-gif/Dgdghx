@@ -1,0 +1,129 @@
+# .github/workflows/main.yml
+
+name: Start SSH VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+
+      ubuntu_os:
+        description: "Select Ubuntu OS"
+        required: true
+        default: "ubuntu-latest"
+
+      ubuntu_version:
+        description: "Ubuntu Version Description"
+        required: true
+        default: "Ubuntu 22.04"
+
+      tailscale_authkey:
+        description: "Enter Your Tailscale Auth Key"
+        required: true
+
+jobs:
+  ssh-vps:
+    runs-on: ${{ github.event.inputs.ubuntu_os }}
+
+    steps:
+
+      - name: Install Packages
+        run: |
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+          curl \
+          wget \
+          sudo \
+          sed \
+          passwd \
+          openssh-server
+
+      - name: Install Tailscale
+        run: |
+
+          curl -fsSL https://tailscale.com/install.sh | sudo bash
+
+      - name: Authenticate Tailscale
+        run: |
+
+          sudo tailscale up \
+          --authkey "${{ github.event.inputs.tailscale_authkey }}" \
+          --ssh
+
+      - name: Generate Username And Password
+        run: |
+
+          USERNAME="ubuntu$(date +%s | tail -c 5)"
+
+          PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20)
+
+          echo "USERNAME=$USERNAME" >> $GITHUB_ENV
+          echo "PASSWORD=$PASSWORD" >> $GITHUB_ENV
+
+          sudo useradd -m -s /bin/bash "$USERNAME"
+
+          echo "$USERNAME:$PASSWORD" | sudo chpasswd
+
+          sudo usermod -aG sudo "$USERNAME"
+
+      - name: Enable Password Login
+        run: |
+
+          sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+
+          sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+
+          sudo sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+          sudo sed -i 's/^UsePAM yes/UsePAM no/g' /etc/ssh/sshd_config
+
+      - name: Start SSH Service
+        run: |
+
+          sudo service ssh start || sudo service sshd start
+
+          sudo systemctl enable ssh || true
+
+      - name: Generate Tailscale IP
+        run: |
+
+          sleep 10
+
+          TSIP=$(tailscale ip -4 | head -n 1)
+
+          echo
+          echo "================================="
+          echo "SSH VPS STARTED"
+          echo "================================="
+          echo
+          echo "Ubuntu Version:"
+          echo "${{ github.event.inputs.ubuntu_version }}"
+          echo
+          echo "Tailscale IP:"
+          echo "$TSIP"
+          echo
+          echo "SSH Port:"
+          echo "22"
+          echo
+          echo "Username:"
+          echo "$USERNAME"
+          echo
+          echo "Password:"
+          echo "$PASSWORD"
+          echo
+          echo "SSH COMMAND:"
+          echo "ssh $USERNAME@$TSIP"
+          echo
+          echo "================================="
+          echo "KEEP VPS RUNNING"
+          echo "Press CTRL+C To Stop"
+          echo "================================="
+
+          while true
+          do
+              echo
+              echo "SSH VPS Running..."
+              echo "Time: $(date)"
+              sleep 60
+          done

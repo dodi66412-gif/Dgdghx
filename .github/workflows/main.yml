@@ -1,0 +1,110 @@
+name: temp-mail-loop
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tempmail:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install curl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl
+
+      - name: Run Mail.tm Inbox Monitor
+        run: |
+
+          DOMAIN=$(curl -s https://api.mail.tm/domains | \
+          grep '"domain"' | \
+          head -n 1 | \
+          cut -d '"' -f4)
+
+          USER="user$(date +%s)"
+          PASS="pass$(date +%s)"
+
+          EMAIL="$USER@$DOMAIN"
+
+          echo "================================="
+          echo "NEW TEMPORARY EMAIL ADDRESS"
+          echo "================================="
+          echo "Email: $EMAIL"
+          echo "Password: $PASS"
+          echo "================================="
+
+          curl -s -X POST https://api.mail.tm/accounts \
+          -H "Content-Type: application/json" \
+          -d "{\"address\":\"$EMAIL\",\"password\":\"$PASS\"}" > /dev/null
+
+          TOKEN=$(curl -s -X POST https://api.mail.tm/token \
+          -H "Content-Type: application/json" \
+          -d "{\"address\":\"$EMAIL\",\"password\":\"$PASS\"}" | \
+          grep '"token"' | \
+          cut -d '"' -f4)
+
+          echo
+          echo "TOKEN:"
+          echo "$TOKEN"
+          echo
+
+          echo "================================="
+          echo "CHECKING INBOX"
+          echo "Press CTRL+C to stop"
+          echo "================================="
+
+          while true
+          do
+
+              echo
+              echo "================================="
+              echo "CHECKING FOR NEW MESSAGES"
+              echo "TIME: $(date)"
+              echo "================================="
+
+              INBOX=$(curl -s https://api.mail.tm/messages \
+              -H "Authorization: Bearer $TOKEN")
+
+              COUNT=$(echo "$INBOX" | \
+              grep '"id"' | \
+              wc -l)
+
+              echo
+              echo "Total Messages: $COUNT"
+              echo
+
+              echo "$INBOX" | \
+              sed 's/},{/\
+/g' | \
+              grep -E '"from"|"subject"' | \
+              cut -d ':' -f2- | \
+              sed 's/[",]//g'
+
+              IDS=$(echo "$INBOX" | \
+              grep '"id"' | \
+              cut -d '"' -f4)
+
+              for ID in $IDS
+              do
+                  echo
+                  echo "---------------------------------"
+                  echo "MESSAGE ID: $ID"
+                  echo "---------------------------------"
+
+                  MSG=$(curl -s https://api.mail.tm/messages/$ID \
+                  -H "Authorization: Bearer $TOKEN")
+
+                  echo "$MSG" | \
+                  sed 's/,/\n/g' | \
+                  grep -E '"subject"|"text"' | \
+                  cut -d ':' -f2- | \
+                  sed 's/[",]//g'
+
+                  echo "---------------------------------"
+              done
+
+              echo
+              echo "Waiting 15 seconds..."
+              sleep 15
+
+          done

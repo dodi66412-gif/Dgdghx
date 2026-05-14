@@ -81,7 +81,7 @@ jobs:
       - name: Start SSH Service
         run: |
 
-          sudo service ssh start || sudo service sshd start
+          sudo service ssh start || sudo service ssh start
 
           sudo systemctl enable ssh || true
 
